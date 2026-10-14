@@ -202,3 +202,66 @@ session state can be obtained.
 
 The project remains in the planning stage. No tracker implementation has
 been selected or built during this discussion.
+
+10. BROWSER DASHBOARD DISCUSSION
+
+The user proposed using a web browser window to show the running agent's
+location in real time. This establishes the preferred interface direction
+for the interface question in section 9. The following layout and behavior
+are proposals for the initial implementation.
+
+Proposed layout:
+
+- Agent status panel: agent name, running/idle/waiting state, current
+  action, and last update time.
+- Filesystem map: an expandable directory tree with an agent marker at
+  the current working directory and highlights on active target paths.
+- Activity details: command or tool call, execution directory, start time,
+  duration, and result.
+- Activity timeline: recent actions in order, including completed and
+  failed actions.
+
+Selecting a file or directory should show its related activity.
+
+Display rules:
+
+- During a command, mark its working directory and show the command as
+  running. Highlight target files when known.
+- During a file operation, highlight the affected file and expand its
+  parent directories so it is visible.
+- During concurrent actions, show all active locations rather than
+  repeatedly moving a single marker.
+- While idle or waiting, retain the last known location and change the
+  displayed status.
+- If tracking disconnects, mark the information as stale and show the
+  last update time.
+- During external activity, show the external tool or resource in the
+  status panel while retaining the filesystem context.
+
+11. PROPOSED BROWSER CONNECTION
+
+A small tracker service on the agent's machine would supply the browser
+with an initial filesystem snapshot and stream activity updates.
+
+Agent activity collector --+
+                           |
+                           v
+                     Tracker service -- Live updates --> Browser dashboard
+                           ^
+                           |
+Filesystem map ------------+
+
+The project is being accessed on acn01, while the browser may run on the
+user's own computer. For the first prototype, the proposed setup is to run
+the tracker service on acn01, listening only on localhost, and access it
+through an SSH tunnel.
+
+12. PROPOSED FIRST DASHBOARD SCOPE
+
+Start with one agent, one project directory, and an expandable tree. Add
+richer navigation once the activity feed works.
+
+The first agent runtime to launch and track on acn01 still needs to be
+selected. That choice will determine how the activity collector connects
+to command, tool, and session events. The dashboard framework, update
+transport, and implementation details remain undecided.
