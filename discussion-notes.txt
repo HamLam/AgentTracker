@@ -1,267 +1,77 @@
-AgentTracker — Discussion Notes
-Date: October 14, 2026
-
-This document summarizes the discussion so far. It records the project goals
-and proposed design; it is not a verbatim transcript. Implementation choices
-remain open unless explicitly stated below.
-
-1. PROJECT PURPOSE
-
-Build a tracker that follows an AI agent during its runtime. A user launches
-the agent and can see in real time where it is working within the system or
-file structure and what it is doing.
-
-For example, if an agent creates files in a directory, the tracker should
-show that activity in that directory. When the agent is idle, the tracker
-should report its current or last known location.
-
-File modification is only one example. Tracking must also include commands
-run by the agent and other observable activities.
-
-All project files are to be kept in:
-/projects/standard/support/shared/lamx0031/Codex/AgentTracker
-
-A README.md has been created with the project overview, intended behavior,
-examples, initial scope, and planning status.
-
-2. FILESYSTEM MAP
-
-The initial idea is to use the tree command to generate a detailed map of
-the project's directories and individual files. This map will provide the
-visual structure on which the agent's activity can be located.
-
-The map should include file dates, particularly modification times, to help
-detect changes. Proposed metadata for each entry includes:
-
-- Path.
-- Entry type: file or directory.
-- Modification time, with sufficient precision for rapid changes.
-- File size as another change signal.
-
-The tree command is useful for displaying the structure. A structured
-filesystem scan was proposed for the tracker's internal representation,
-making paths and metadata easier to query and update before rendering them
-as a tree. This implementation choice has not yet been finalized.
-
-Hidden files and exclusions should be configurable. Large directories such
-as .git and dependency directories can make a full tree expensive and hard
-to navigate.
-
-3. MAP UPDATES AND ATTRIBUTION
-
-A proposed sequence is:
-
-1) Scan the project directory to establish a baseline map.
-2) Track file creation, modification, deletion, and movement to update it.
-3) Connect agent activity events to attribute actions and display runtime
-   state and working locations.
-
-Filesystem notifications were proposed for live updates, with periodic
-scans to catch missed changes.
-
-Modification times can indicate that a file changed, but cannot identify
-who changed it. Users, other agents, and background processes may also
-change files. Filesystem changes alone also do not reveal reading, command
-execution, or model processing.
-
-Until a change can be attributed to an agent, the display should describe it
-as a filesystem change detected rather than a confirmed agent action.
-
-4. AGENT ACTIVITY MODEL
-
-The user clarified that the design should first lay out expected agent
-behavior, then use that model to track activity and location. Commands and
-other actions are part of this model, beyond file modifications.
-
-Each activity should describe:
-
-- Who is acting.
-- What the agent is doing.
-- Where the action is happening.
-- Whether the action is running or has finished.
-
-Proposed behavior categories and display rules:
-
-Agent starts:
-  Show "Starting session" at its initial working directory.
-
-Lists or searches files:
-  Show "Exploring" or "Searching" at the directory being searched.
-  Include matching files when known.
-
-Reads a file:
-  Show "Reading" at the file path.
-
-Creates, edits, moves, or deletes files:
-  Show the corresponding operation at the affected paths.
-
-Runs a command:
-  Show the command and running status at its working directory.
-  Include known target paths.
-
-Runs tests or a build:
-  Show "Testing" or "Building" when the action can be identified.
-  Include its working directory and known targets.
-
-Calls an external tool or service:
-  Show the tool name, operation, and external resource.
-  Retain the local working directory as context.
-
-Performs a model step:
-  Show "Processing" when reported by the runtime.
-  Retain the last known working location.
-
-Waits for input or approval:
-  Show "Waiting for user" at the last known working location.
-
-Becomes idle:
-  Show "Idle" and retain the last known working location.
-
-Finishes or stops:
-  Show "Completed", "Cancelled", or "Failed", with the final known
-  location.
-
-5. WHAT LOCATION MEANS
-
-The proposed model separates two concepts:
-
-- Working directory: the execution context where an action runs.
-- Target resources: the files, directories, or external resources involved
-  in the action.
-
-For example, a command launched from /project may read
-/project/src/main.py and write into /project/output. The tracker should
-retain /project as the execution context and highlight the affected paths
-when they are known.
-
-External activity may not have a meaningful position in the local file
-tree. The tracker should identify the external resource while retaining
-the local context.
-
-6. PROPOSED ACTIVITY RECORD
-
-Identity:
-  Agent ID, session ID, and activity ID.
-
-Action:
-  Activity type, tool name, and command or operation details.
-
-Location:
-  Working directory and known target paths or external resources.
-
-Lifecycle:
-  Start time, end time, status (running, completed, failed, or cancelled),
-  and result information such as an exit code.
-
-Evidence:
-  Whether the information comes directly from an agent tool event,
-  process observation, or an inference.
-
-7. OBSERVABILITY RULES
-
-The display should distinguish observed information from inferred behavior.
-For example, a command event can establish that the agent is running
-"python script.py", but the command text alone does not establish every
-file the script accesses.
-
-Silence should mean "No recent activity observed" unless the runtime
-confirms that the agent is idle. A lack of filesystem changes does not
-establish idleness.
-
-The tracker should allow multiple simultaneous activities. If an agent
-launches two commands in different directories, both locations should
-appear as active. Completed activities should remain in a timeline.
-
-8. PROPOSED DATA FLOW
-
-Agent runtime and tool events ----+
-                                 |
-                                 v
-                          Activity model
-                                 ^
-                                 |
-Filesystem/process observations -+
-
-Activity model -> Current agent state -> Filesystem map and activity timeline
-
-Agent events would supply command starts, tool calls, results, and session
-state where available. Filesystem and process observations would provide
-additional evidence and keep the map current.
-
-9. OPEN DECISIONS
-
-- Which agent runtime should the first prototype track?
-- What integration will provide its activity and session events?
-- What interface should display the map and activity timeline?
-- How should the filesystem map be stored and updated?
-- What directories and files should be included by default?
-
-The next proposed design decision is selecting the first agent runtime,
-because this determines how command starts, tool calls, results, and
-session state can be obtained.
-
-The project remains in the planning stage. No tracker implementation has
-been selected or built during this discussion.
-
-10. BROWSER DASHBOARD DISCUSSION
-
-The user proposed using a web browser window to show the running agent's
-location in real time. This establishes the preferred interface direction
-for the interface question in section 9. The following layout and behavior
-are proposals for the initial implementation.
-
-Proposed layout:
-
-- Agent status panel: agent name, running/idle/waiting state, current
-  action, and last update time.
-- Filesystem map: an expandable directory tree with an agent marker at
-  the current working directory and highlights on active target paths.
-- Activity details: command or tool call, execution directory, start time,
-  duration, and result.
-- Activity timeline: recent actions in order, including completed and
-  failed actions.
-
-Selecting a file or directory should show its related activity.
-
-Display rules:
-
-- During a command, mark its working directory and show the command as
-  running. Highlight target files when known.
-- During a file operation, highlight the affected file and expand its
-  parent directories so it is visible.
-- During concurrent actions, show all active locations rather than
-  repeatedly moving a single marker.
-- While idle or waiting, retain the last known location and change the
-  displayed status.
-- If tracking disconnects, mark the information as stale and show the
-  last update time.
-- During external activity, show the external tool or resource in the
-  status panel while retaining the filesystem context.
-
-11. PROPOSED BROWSER CONNECTION
-
-A small tracker service on the agent's machine would supply the browser
-with an initial filesystem snapshot and stream activity updates.
-
-Agent activity collector --+
-                           |
-                           v
-                     Tracker service -- Live updates --> Browser dashboard
-                           ^
-                           |
-Filesystem map ------------+
-
-The project is being accessed on acn01, while the browser may run on the
-user's own computer. For the first prototype, the proposed setup is to run
-the tracker service on acn01, listening only on localhost, and access it
-through an SSH tunnel.
-
-12. PROPOSED FIRST DASHBOARD SCOPE
-
-Start with one agent, one project directory, and an expandable tree. Add
-richer navigation once the activity feed works.
-
-The first agent runtime to launch and track on acn01 still needs to be
-selected. That choice will determine how the activity collector connects
-to command, tool, and session events. The dashboard framework, update
-transport, and implementation details remain undecided.
+AgentTracker — Design Notes
+Updated: October 14, 2026
+
+PURPOSE AND SCOPE
+Track a user-launched AI agent in real time through a browser dashboard:
+what it is doing, where it is working, and whether it is active or idle.
+Track commands, tool calls, and file operations. Start with one agent and
+one project directory. The project is in planning; designs below are
+proposals unless identified as requirements.
+
+FILESYSTEM MAP
+Use an expandable tree of directories and files as the location map.
+The original idea was the tree command; a structured scan is proposed for
+internal storage. Record path, entry type, modification time, and size.
+Keep the map current through filesystem notifications and periodic scans;
+make hidden files and exclusions configurable.
+
+ACTIVITY AND LOCATION MODEL
+Capture agent/session/activity IDs, action or command, working directory,
+known target paths or external resources, start/end times, status, result
+(e.g., exit code), and evidence source.
+
+Expected behaviors:
+- Start; explore/search; read; create/edit/move/delete files.
+- Execute commands, tests, builds, or external tool calls.
+- Process a model step when reported; wait for input; become idle.
+- Complete, fail, or cancel.
+
+Working directory and target resources are distinct. For example:
+
+/project/                  <- command working directory
+|-- src/main.py            <- known read target
+`-- output/                <- known write target
+
+Show all concurrent activities. Retain the last known location when idle
+or waiting; show external resources alongside local context.
+
+EVIDENCE RULES
+- File timestamps reveal changes, but do not identify who made them.
+- Attribute activity using agent events or supporting observations;
+  label inferences and unattributed filesystem changes clearly.
+- Command text alone does not establish every file accessed.
+- Silence means no recent activity observed, unless idle is confirmed.
+- Mark disconnected tracking as stale and show the last update time.
+
+BROWSER DASHBOARD (PREFERRED INTERFACE)
++----------------------+-------------------------------------+
+| Filesystem tree      | Agent status and last update        |
+| Working-dir marker   | Current command/tool, duration,     |
+| Active target paths  | execution directory, and result     |
+|                      +-------------------------------------+
+| Select a path to     | Activity timeline                   |
+| inspect its activity | Running, completed, failed actions  |
++----------------------+-------------------------------------+
+
+Highlight active files and expand their parent directories. Keep multiple
+active locations visible and retain completed actions in the timeline.
+
+PROPOSED ARCHITECTURE
+Agent runtime/tool events -------+
+                                v
+                         Tracker service
+Filesystem/process data ------> Activity model + current state
+                                |
+                                | Initial map + live updates
+                                v
+                         Browser dashboard
+
+Run the service on acn01, listening on localhost. Access it from the user's
+computer through an SSH tunnel.
+
+NEXT DECISIONS
+1. Select the first agent runtime and how to collect its activity events.
+2. Choose the dashboard framework and live-update transport.
+3. Define map storage, update handling, and default exclusions.
+
+Build the activity feed and basic tree before adding richer navigation.
