@@ -9,6 +9,18 @@ starts the Python backend and web server. Opening the page creates a demo
 session that cycles through simulated agent activities. Displayed commands
 are never executed, and `/project/` paths are fictional.
 
+## Dashboard screenshots
+
+The screenshots below show simulated activities in the proof of concept.
+
+**Inspecting the environment:** the execution and system quadrants are active.
+
+![Demo radar showing simulated environment inspection with execution and system areas active](png/agent-tracker-demo1.png)
+
+**Reading project files:** the project workspace and execution quadrants are active.
+
+![Demo radar showing simulated file reading with project workspace and execution areas active](png/agent-tracker-demo2.png)
+
 ## What runs where
 
 ```text
@@ -40,6 +52,7 @@ or SQLite database. Those are proposals in `discussion-notes.txt`.
 | `requirements.txt` | Pinned NiceGUI dependency |
 | `discussion-notes.txt` | Design discussion, including proposed future components |
 | `README.md` | Installation, operation, browser access, and troubleshooting |
+| `png/` | Dashboard screenshots displayed in this README |
 
 ## 1. Prepare the compute environment
 
