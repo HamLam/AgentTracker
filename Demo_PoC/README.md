@@ -9,17 +9,16 @@ starts the Python backend and web server. Opening the page creates a demo
 session that cycles through simulated agent activities. Displayed commands
 are never executed, and `/project/` paths are fictional.
 
-## Dashboard screenshots
+## Dashboard demo video
 
-The screenshots below show simulated activities in the proof of concept.
+Watch the 10-second demo as simulated activities move across the radar,
+from reading project files to inspecting the environment, pushing changes,
+and going idle. The animated preview below links to the full MP4 video.
 
-**Inspecting the environment:** the execution and system quadrants are active.
+[![Animated preview of the Agent Activity Tracker demo](video/agent-tracker-demo.gif)](video/agent-tracker-demo.mp4)
 
-![Demo radar showing simulated environment inspection with execution and system areas active](png/agent-tracker-demo1.png)
-
-**Reading project files:** the project workspace and execution quadrants are active.
-
-![Demo radar showing simulated file reading with project workspace and execution areas active](png/agent-tracker-demo2.png)
+[Watch or download the 10-second MP4](video/agent-tracker-demo.mp4)
+— 1440 × 1080, H.264, approximately 237 KB, no audio.
 
 ## What runs where
 
@@ -52,7 +51,8 @@ or SQLite database. Those are proposals in `discussion-notes.txt`.
 | `requirements.txt` | Pinned NiceGUI dependency |
 | `discussion-notes.txt` | Design discussion, including proposed future components |
 | `README.md` | Installation, operation, browser access, and troubleshooting |
-| `png/` | Dashboard screenshots displayed in this README |
+| `video/` | Ten-second MP4 demo and animated README preview |
+| `png/` | Original dashboard screenshots retained for reference |
 
 ## 1. Prepare the compute environment
 
