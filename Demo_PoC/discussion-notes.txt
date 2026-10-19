@@ -1,0 +1,198 @@
+AgentTracker — Design Notes
+Updated: October 14, 2026
+
+PURPOSE AND SCOPE
+Track a user-launched AI agent in real time through a browser dashboard:
+what it is doing, where it is working, and whether it is active or idle.
+Track commands, tool calls, and file operations. Start with one agent and
+one project directory. The project is in planning; designs below are
+proposals unless identified as requirements.
+
+FILESYSTEM MAP
+Use an expandable tree of directories and files as the location map.
+The original idea was the tree command; a structured scan is proposed for
+internal storage. Record path, entry type, modification time, and size.
+Keep the map current through filesystem notifications and periodic scans;
+make hidden files and exclusions configurable.
+
+ACTIVITY AND LOCATION MODEL
+Capture agent/session/activity IDs, action or command, working directory,
+known target paths or external resources, start/end times, status, result
+(e.g., exit code), and evidence source.
+
+Expected behaviors:
+- Start; explore/search; read; create/edit/move/delete files.
+- Execute commands, tests, builds, or external tool calls.
+- Process a model step when reported; wait for input; become idle.
+- Complete, fail, or cancel.
+
+Working directory and target resources are distinct. For example:
+
+/project/                  <- command working directory
+|-- src/main.py            <- known read target
+`-- output/                <- known write target
+
+Show all concurrent activities. Retain the last known location when idle
+or waiting; show external resources alongside local context.
+
+EVIDENCE RULES
+- File timestamps reveal changes, but do not identify who made them.
+- Attribute activity using agent events or supporting observations;
+  label inferences and unattributed filesystem changes clearly.
+- Command text alone does not establish every file accessed.
+- Silence means no recent activity observed, unless idle is confirmed.
+- Mark disconnected tracking as stale and show the last update time.
+
+BROWSER DASHBOARD (PREFERRED INTERFACE)
++----------------------+-------------------------------------+
+| Filesystem tree      | Agent status and last update        |
+| Working-dir marker   | Current command/tool, duration,     |
+| Active target paths  | execution directory, and result     |
+|                      +-------------------------------------+
+| Select a path to     | Activity timeline                   |
+| inspect its activity | Running, completed, failed actions  |
++----------------------+-------------------------------------+
+
+Highlight active files and expand their parent directories. Keep multiple
+active locations visible and retain completed actions in the timeline.
+
+PROPOSED ARCHITECTURE
+Agent runtime/tool events -------+
+                                v
+                         Tracker service
+Filesystem/process data ------> Activity model + current state
+                                |
+                                | Initial map + live updates
+                                v
+                         Browser dashboard
+
+Run the service on acn01, listening on localhost. Access it from the user's
+computer through an SSH tunnel.
+
+NEXT DECISIONS
+1. Select the first agent runtime and how to collect its activity events.
+2. Choose the dashboard framework and live-update transport.
+3. Define map storage, update handling, and default exclusions.
+
+Build the activity feed and basic tree before adding richer navigation.
+
+RADAR DISPLAY IDEA (October 15, 2026)
+The user proposed a radar display divided into four quadrants, each showing
+a critical area where an agent operates. Red means an agent is active in
+that area; green means no agent is present there.
+
+Proposed quadrant assignments (not yet decided):
++-----------------------------+-----------------------------+
+| Project workspace           | Execution and processes     |
+| Source code, documentation  | Commands, tests, builds     |
++-----------------------------+-----------------------------+
+| System and environment      | External services           |
+| Config, dependencies, temp  | APIs, browsing, GitHub      |
++-----------------------------+-----------------------------+
+
+Suggested behavior:
+- Use radar as the main view; selecting a quadrant reveals agents,
+  commands, and paths, with the filesystem tree providing local detail.
+- Allow an action to activate multiple quadrants, such as git push
+  involving both execution and external services.
+- Add agent counts and activity labels alongside color indicators.
+- Use gray for unknown or disconnected tracking rather than implying
+  that no agent is present.
+- When idle, clear active highlights but retain a labeled marker for
+  the agent's last known location.
+
+Open decision: should quadrants represent operating categories as above,
+or four concrete directory roots? Confirm this before defining activity
+classification and replacing the earlier tree-first dashboard proposal.
+
+BACKEND AND FRONTEND ARCHITECTURE (October 15, 2026)
+The user proposed Python as the main language for both backend and
+frontend. The following stack is recommended for the first prototype;
+it has not yet been implemented or finalized.
+
+Component                  Proposed choice
+Browser dashboard          NiceGUI with a custom SVG quadrant radar
+Tracking engine            Python modules independent of browser sessions
+Process monitoring         psutil
+Filesystem monitoring      Watchdog plus periodic reconciliation scans
+Activity history           SQLite
+Remote access              Localhost service on compute node, SSH tunnel
+
+NiceGUI lets us define the interface in Python while supplying the browser
+HTML/JavaScript and managing live communication. It builds on FastAPI.
+Start with one Python application, keeping collectors, the activity model,
+storage, and the interface in separate modules.
+
+Agent session events ------+
+Linux process monitor -----+--> Python tracking engine
+Filesystem watcher --------+           |
+                                      +--> Current state + quadrants --+
+                                      +--> SQLite activity history ---+
+                                                                      |
+                                                                      v
+                                                            NiceGUI web server
+                                                                      ^
+                                                   Updates/selections |
+                                                                      v
+                                                            Browser dashboard
+                                                          Radar / tree / timeline
+
+TRACKING INPUTS
+1. Agent integration (primary source for behavior): session identity,
+   commands, tool calls, start/end events, and waiting state. Each runtime
+   needs an adapter; available events must be verified for that runtime.
+2. Linux processes: process IDs, child processes, working directories,
+   open files where available, CPU, and memory. These observations add
+   context but cannot reliably explain intent or capture every brief action.
+3. Filesystem events: creation, modification, movement, and deletion.
+   These keep the map current but do not establish which agent acted.
+
+BACKEND ACTIVITY FLOW
+1. On command start, record session/activity IDs, command, working
+   directory, and start time.
+2. Associate known process IDs and target files with the activity.
+3. Classify the activity into applicable radar quadrants.
+4. Update current state and send the change to the browser.
+5. On completion, record the result and remove its active highlights.
+
+Each quadrant holds a set of active activities. Finishing one command must
+not turn a quadrant green while another activity remains there. Keep
+completed activities in the timeline and persistent history.
+
+OPEN-SOURCE MONITORING OPTIONS
+- psutil: Python process and system information, including working
+  directories, children, open files, CPU, and memory. Proposed core library.
+  https://psutil.readthedocs.io/stable/index.html
+- Watchdog: Python filesystem monitoring. Proposed for map updates.
+  https://python-watchdog.readthedocs.io/en/latest/quickstart.html
+- Glances: general system monitoring with terminal and web interfaces.
+  Useful reference or companion; agent attribution still needs custom logic.
+  https://github.com/nicolargo/glances
+- strace: Linux system call and signal tracing. Useful for investigating
+  detailed process behavior.
+  https://strace.io/
+- Sysdig: system call and OS event capture. Potential deeper monitoring;
+  kernel access requirements and cluster permissions need checking.
+  https://github.com/draios/sysdig
+- NiceGUI: Python browser UI framework for the dashboard and live updates.
+  https://github.com/zauberzeug/nicegui
+
+Use psutil and Watchdog directly with an agent adapter for the first
+version. General system monitors do not replace the session attribution
+and activity classification needed for AgentTracker.
+
+LIVE UPDATES AND LIMITATIONS
+- Prefer server-pushed state updates: initial snapshot followed by changes.
+  NiceGUI manages browser communication without a separate handwritten
+  JavaScript application.
+- On reconnect, send a fresh snapshot to replace stale radar state.
+- Keep collectors running independently of browser connections.
+- Process polling can miss short-lived commands; runtime start/end events
+  provide a better activity record when available.
+- Linux running/sleeping process states do not establish agent active/idle
+  states. Use runtime evidence and show unknown when evidence is inadequate.
+
+FIRST TECHNICAL EXPERIMENT
+Capture one agent's command start, working directory, and completion, then
+use those events to light and clear a radar quadrant. Selecting the agent
+runtime and verifying its event interface remain prerequisites.
